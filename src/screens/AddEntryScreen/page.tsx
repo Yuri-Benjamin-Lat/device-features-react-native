@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   Image,
   Pressable,
-  StyleSheet,
   ScrollView,
   ActivityIndicator,
   Alert,
@@ -16,12 +15,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Crypto from 'expo-crypto';
 
-import { RootStackParamList, TravelEntry } from '../types';
-import { useTheme } from '../context/ThemeContext';
-import { useEntries } from '../context/EntriesContext';
-import { CameraService } from '../../services/CameraService';
-import { LocationService } from '../../services/LocationService';
-import { NotificationService } from '../../services/NotificationService';
+import { RootStackParamList, TravelEntry } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
+import { useEntries } from '../../context/EntriesContext';
+import { CameraService } from '../../../services/CameraService';
+import { LocationService } from '../../../services/LocationService';
+import { NotificationService } from '../../../services/NotificationService';
+import { styles, sectionStyles } from './styles';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddEntry'>;
 
@@ -54,12 +54,6 @@ export default function AddEntryScreen({ navigation }: Props) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Track if form has been reset after navigation back
-  const isFirstLoad = useRef(true);
-  if (isFirstLoad.current) {
-    isFirstLoad.current = false;
-  }
-
   // ─── Validation ────────────────────────────────────────────────────
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -75,10 +69,6 @@ export default function AddEntryScreen({ navigation }: Props) {
       newErrors.address = 'Address must be at least 3 characters.';
     }
 
-    if (form.imageUri && form.latitude === 0 && form.longitude === 0) {
-      // Allow manual address without GPS, but warn if address looks suspicious
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -90,28 +80,6 @@ export default function AddEntryScreen({ navigation }: Props) {
       return next;
     });
   };
-
-  // ─── Image Handlers ─────────────────────────────────────────────────
-  const handleTakePhoto = useCallback(async () => {
-    const result = await CameraService.takePhoto();
-    if (!result) return;
-
-    setForm((prev) => ({ ...prev, imageUri: result.uri }));
-    clearFieldError('image');
-    // Automatically get location after taking photo
-    await handleGetLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handlePickGallery = useCallback(async () => {
-    const result = await CameraService.pickFromGallery();
-    if (!result) return;
-
-    setForm((prev) => ({ ...prev, imageUri: result.uri }));
-    clearFieldError('image');
-    await handleGetLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ─── Location Handler ────────────────────────────────────────────────
   const handleGetLocation = useCallback(async () => {
@@ -136,6 +104,23 @@ export default function AddEntryScreen({ navigation }: Props) {
     }
   }, []);
 
+  // ─── Image Handlers ─────────────────────────────────────────────────
+  const handleTakePhoto = useCallback(async () => {
+    const result = await CameraService.takePhoto();
+    if (!result) return;
+    setForm((prev) => ({ ...prev, imageUri: result.uri }));
+    clearFieldError('image');
+    await handleGetLocation();
+  }, [handleGetLocation]);
+
+  const handlePickGallery = useCallback(async () => {
+    const result = await CameraService.pickFromGallery();
+    if (!result) return;
+    setForm((prev) => ({ ...prev, imageUri: result.uri }));
+    clearFieldError('image');
+    await handleGetLocation();
+  }, [handleGetLocation]);
+
   // ─── Save Handler ────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     if (!validateForm()) return;
@@ -152,15 +137,11 @@ export default function AddEntryScreen({ navigation }: Props) {
       };
 
       await addEntry(entry);
-
-      // Send local notification
       await NotificationService.sendEntrySavedNotification(entry.address);
 
-      // Reset form state
       setForm(EMPTY_FORM);
       setErrors({});
 
-      // Navigate back to Home using goBack
       navigation.goBack();
     } catch (error) {
       const message =
@@ -169,7 +150,6 @@ export default function AddEntryScreen({ navigation }: Props) {
     } finally {
       setIsSaving(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, addEntry, navigation]);
 
   // ─── Discard / Go Back ───────────────────────────────────────────────
@@ -212,8 +192,10 @@ export default function AddEntryScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Image Section ── */}
-          <SectionLabel text="Photo" theme={theme} />
+          {/* ── Photo Section ── */}
+          <Text style={[sectionStyles.label, { color: theme.textSecondary }]}>
+            PHOTO
+          </Text>
 
           {form.imageUri ? (
             <View style={styles.imageWrapper}>
@@ -224,9 +206,7 @@ export default function AddEntryScreen({ navigation }: Props) {
                 accessibilityLabel="Selected travel photo"
               />
               <Pressable
-                onPress={() => {
-                  setForm((prev) => ({ ...prev, imageUri: '' }));
-                }}
+                onPress={() => setForm((prev) => ({ ...prev, imageUri: '' }))}
                 style={({ pressed }) => [
                   styles.clearImageBtn,
                   { backgroundColor: theme.danger, opacity: pressed ? 0.7 : 1 },
@@ -258,10 +238,12 @@ export default function AddEntryScreen({ navigation }: Props) {
           )}
 
           {errors.image && (
-            <ErrorText message={errors.image} theme={theme} />
+            <Text style={[sectionStyles.error, { color: theme.danger }]}>
+              ⚠ {errors.image}
+            </Text>
           )}
 
-          {/* ── Camera/Gallery Buttons ── */}
+          {/* ── Camera / Gallery Buttons ── */}
           <View style={styles.imageActions}>
             <Pressable
               onPress={handleTakePhoto}
@@ -305,7 +287,9 @@ export default function AddEntryScreen({ navigation }: Props) {
           </View>
 
           {/* ── Location Section ── */}
-          <SectionLabel text="Location" theme={theme} />
+          <Text style={[sectionStyles.label, { color: theme.textSecondary }]}>
+            LOCATION
+          </Text>
 
           <View style={styles.locationRow}>
             <TextInput
@@ -355,10 +339,14 @@ export default function AddEntryScreen({ navigation }: Props) {
           </View>
 
           {errors.address && (
-            <ErrorText message={errors.address} theme={theme} />
+            <Text style={[sectionStyles.error, { color: theme.danger }]}>
+              ⚠ {errors.address}
+            </Text>
           )}
           {errors.location && (
-            <ErrorText message={errors.location} theme={theme} />
+            <Text style={[sectionStyles.error, { color: theme.danger }]}>
+              ⚠ {errors.location}
+            </Text>
           )}
 
           <Text style={[styles.locationHint, { color: theme.textMuted }]}>
@@ -414,168 +402,3 @@ export default function AddEntryScreen({ navigation }: Props) {
     </SafeAreaView>
   );
 }
-
-// ─── Sub-components ──────────────────────────────────────────────────
-
-function SectionLabel({
-  text,
-  theme,
-}: {
-  text: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-}) {
-  return (
-    <Text style={[sectionStyles.label, { color: theme.textSecondary }]}>
-      {text.toUpperCase()}
-    </Text>
-  );
-}
-
-function ErrorText({
-  message,
-  theme,
-}: {
-  message: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-}) {
-  return (
-    <Text style={[sectionStyles.error, { color: theme.danger }]}>
-      ⚠ {message}
-    </Text>
-  );
-}
-
-const sectionStyles = StyleSheet.create({
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  error: {
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: '500',
-  },
-});
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scroll: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  imageWrapper: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  previewImage: {
-    width: '100%',
-    height: 240,
-    borderRadius: 16,
-  },
-  clearImageBtn: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  imagePlaceholder: {
-    height: 180,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  placeholderIcon: {
-    fontSize: 40,
-  },
-  placeholderText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  imageActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  actionBtn: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  addressInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    lineHeight: 20,
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  locationBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  locationBtnText: {
-    fontSize: 22,
-  },
-  locationHint: {
-    fontSize: 12,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  formActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 32,
-  },
-  cancelBtn: {
-    height: 54,
-    paddingHorizontal: 24,
-    borderRadius: 27,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  saveBtn: {
-    height: 54,
-    borderRadius: 27,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  saveBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});

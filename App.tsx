@@ -6,8 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { EntriesProvider } from './src/context/EntriesContext';
-import HomeScreen from './src/screens/HomeScreen';
-import AddEntryScreen from './src/screens/AddEntryScreen';
+import HomeScreen from './src/screens/HomeScreen/page';
+import AddEntryScreen from './src/screens/AddEntryScreen/page';
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
